@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Лента",
+      "hasCanvas": false,
+      "bodyTextLen": 668,
+      "bodyTextHash": "e37add465965d9402cd915fe0e48a6ee9c6f47567e8af7064e669caaded1d097",
+      "bodyTextPrefix": "Лента Проверка перед публикацией в TikTok Вставь ролик. Посмотри",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Лента",
+      "hasCanvas": false,
+      "bodyTextLen": 668,
+      "bodyTextHash": "e37add465965d9402cd915fe0e48a6ee9c6f47567e8af7064e669caaded1d097",
+      "bodyTextPrefix": "Лента Проверка перед публикацией в TikTok Вставь ролик. Посмотри",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

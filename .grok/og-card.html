@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @font-face {
+      font-family: "Old Standard";
+      src: url("fonts/OldStandard-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    html, body {
+      margin: 0;
+      width: 1200px;
+      height: 630px;
+      background: #0E0E0C;
+    }
+    .stage {
+      width: 1200px;
+      height: 630px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0E0E0C;
+    }
+    .lockup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .title {
+      margin: 0;
+      font-family: "Old Standard", "Liberation Serif", serif;
+      font-weight: 400;
+      font-size: 228px;
+      line-height: 0.86;
+      color: #F3F1EA;
+      letter-spacing: 0.012em;
+    }
+    .mark {
+      width: 128px;
+      height: 3px;
+      margin-top: 34px;
+      background: #C4553A;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="lockup">
+      <h1 class="title">Лента</h1>
+      <div class="mark" aria-hidden="true"></div>
+    </div>
+  </div>
+</body>
+</html>

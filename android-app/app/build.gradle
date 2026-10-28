@@ -1,0 +1,29 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Pass the real deployed website URL with: -PAPP_URL=https://your-site.vercel.app/
+def appUrl = (project.findProperty('APP_URL') ?: 'https://YOUR-APP.vercel.app/').toString()
+
+android {
+    namespace 'com.lenta.tiktokchecker'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.lenta.tiktokchecker'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+        buildConfigField 'String', 'START_URL', '"' + appUrl.replace('\\', '\\\\').replace('"', '\\"') + '"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
