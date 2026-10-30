@@ -7,37 +7,31 @@ type Payload = {
 };
 
 const SYSTEM = `Ты профессиональный режиссер TikTok и эксперт по вирусному контенту. Ты смотришь отдельные кадры одного ролика.
-Твоя задача — оценить ВИЗУАЛЬНУЮ составляющую: композицию, динамику, движение в кадре, смену планов и то, как выстроена визуальная история. 
+Твоя задача — оценить ВИЗУАЛЬНУЮ составляющую и риск ТЕНЕВОГО БАНА (shadowban).
 ЗВУК ТЕБЕ НЕ ДАН. 
-ОБРАТИ ВНИМАНИЕ: Если в кадре нет текста, это НЕ значит, что видео плохое. Оценивай картинку, действие и визуальные образы на всех кадрах в совокупности. Если первые кадры темные, но дальше что-то происходит — оценивай по тому, что происходит.
-Отвечай только на русском языке.
-Отвечай только JSON без markdown.
-Все оценки score возвращай целыми числами от 1 до 100, не используй 0. Если данных мало, поставь 40-50 и объясни в note. ЗАПРЕЩЕНО возвращать 0 для story и originality, минимальная оценка 20. 
-Заполни все поля структуры.`;
+ОБРАТИ ВНИМАНИЕ: Если в кадре нет текста, это НЕ значит, что видео плохое. Оценивай картинку, действие и визуальные образы.
+Отвечай только на русском языке. Отвечай только JSON без markdown.
+Все оценки score возвращай целыми числами от 1 до 100. Если данных мало, ставь 40-50. ЗАПРЕЩЕНО возвращать 0.`;
 
 function payload(input: unknown): Payload {
   if (!input || typeof input !== "object") throw new Error("Пустой запрос");
   const frames = (input as { frames?: unknown }).frames;
   const brief = (input as { brief?: unknown }).brief;
-  if (!Array.isArray(frames) || frames.length < 1 || frames.length > 8) throw new Error("Нужны кадры ролика");
+  if (!Array.isArray(frames) || frames.length < 1) throw new Error("Нужны кадры ролика");
   const clean = frames.map((frame) => {
-    if (!frame || typeof frame !== "object") throw new Error("Плохой кадр");
     const t = Number((frame as { t?: unknown }).t);
-    const jpeg = (frame as { jpeg?: unknown }).jpeg;
-    if (!Number.isFinite(t) || typeof jpeg !== "string" || jpeg.length < 80 || jpeg.length > 120_000) throw new Error("Кадр слишком большой или пустой");
+    const jpeg = (frame as { jpeg?: unknown }).jpeg as string;
     return { t, jpeg: jpeg.replace(/\s/g, "") };
   });
-  if (typeof brief !== "string") throw new Error("Нет описания файла");
-  return { frames: clean, brief: brief.slice(0, 2500) };
+  return { frames: clean, brief: String(brief).slice(0, 2500) };
 }
 
 function clampScore(value: unknown) {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return 50;
-  return Math.min(100, Math.max(1, n));
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(1, n)) : 50;
 }
 
-function extractJson(text: string): unknown {
+function extractJson(text: string): any {
   const unfenced = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   try { return JSON.parse(unfenced); } catch {
     const start = unfenced.indexOf("{");
@@ -47,44 +41,34 @@ function extractJson(text: string): unknown {
   }
 }
 
-function asText(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
-
 function parseModel(text: string): ModelFacts {
-  const raw = extractJson(text) as Record<string, unknown>;
-  const watched = asText(raw.watched);
-  if (watched.length < 10) throw new Error("empty watch");
-  const hook = (raw.hook ?? {}) as Record<string, unknown>;
-  const payoff = (raw.payoff ?? {}) as Record<string, unknown>;
-  const loop = (raw.loop ?? {}) as Record<string, unknown>;
-  const clarity = (raw.clarity ?? {}) as Record<string, unknown>;
-  const watermarkRaw = asText(raw.watermark);
-  const watermark = (["none", "tiktok", "other", "unsure"] as const).includes(watermarkRaw as "none") ? (watermarkRaw as ModelFacts["watermark"]) : "unsure";
-  const fixesIn = Array.isArray(raw.fixes) ? raw.fixes : [];
-  const captionsIn = Array.isArray(raw.captions) ? raw.captions : [];
+  const raw = extractJson(text);
   return {
-    watched, topic: asText(raw.topic).slice(0, 80), hookScore: clampScore(hook.score), hookProblem: asText(hook.problem) || null,
-    payoffScore: clampScore(payoff.score), payoffNote: asText(payoff.note).slice(0, 240), loopScore: clampScore(loop.score), loopNote: asText(loop.note).slice(0, 240),
-    clarityScore: clampScore(clarity.score), storyScore: clampScore((raw.story as Record<string, unknown> | undefined)?.score),
-    storyNote: asText((raw.story as Record<string, unknown> | undefined)?.note).slice(0, 300),
-    originalityScore: clampScore((raw.originality as Record<string, unknown> | undefined)?.score),
-    originalityNote: asText((raw.originality as Record<string, unknown> | undefined)?.note).slice(0, 300),
-    retentionNotes: Array.isArray(raw.retentionNotes) ? raw.retentionNotes.map(asText).filter(Boolean).slice(0, 5) : [],
-    searchPhrases: Array.isArray(clarity.searchPhrases) ? clarity.searchPhrases.map(asText).filter(Boolean).slice(0, 5) : [],
-    watermark, suggestedHookLine: asText(raw.suggestedHookLine).slice(0, 90),
-    titles: Array.isArray(raw.titles) ? raw.titles.map(asText).filter(Boolean).slice(0, 5) : [],
-    strengths: Array.isArray(raw.strengths) ? raw.strengths.map(asText).filter(Boolean).slice(0, 5) : [],
-    weaknesses: Array.isArray(raw.weaknesses) ? raw.weaknesses.map(asText).filter(Boolean).slice(0, 5) : [],
-    fixes: fixesIn.slice(0, 6).map((item) => {
-      const fix = (item ?? {}) as Record<string, unknown>;
-      const priority = asText(fix.priority);
-      const at = fix.at === null || fix.at === undefined ? null : Number(fix.at);
-      return { priority: priority === "high" || priority === "low" ? priority : "medium", at: at !== null && Number.isFinite(at) ? at : null, title: asText(fix.title), action: asText(fix.action) };
-    }),
-    captions: captionsIn.slice(0, 3).map((item) => {
-      const caption = (item ?? {}) as Record<string, unknown>;
-      return { label: asText(caption.label), text: asText(caption.text), hashtags: Array.isArray(caption.hashtags) ? caption.hashtags.map(asText) : [] };
-    }),
-  };
+    watched: String(raw.watched || ""),
+    topic: String(raw.topic || ""),
+    hookScore: clampScore(raw.hook?.score),
+    hookProblem: String(raw.hook?.problem || ""),
+    payoffScore: clampScore(raw.payoff?.score),
+    payoffNote: String(raw.payoff?.note || ""),
+    loopScore: clampScore(raw.loop?.score),
+    loopNote: String(raw.loop?.note || ""),
+    clarityScore: clampScore(raw.clarity?.score),
+    storyScore: clampScore(raw.story?.score),
+    storyNote: String(raw.story?.note || ""),
+    originalityScore: clampScore(raw.originality?.score),
+    originalityNote: String(raw.originality?.note || ""),
+    retentionNotes: Array.isArray(raw.retentionNotes) ? raw.retentionNotes.map(String) : [],
+    watermark: raw.watermark || "unsure",
+    suggestedHookLine: String(raw.suggestedHookLine || ""),
+    titles: Array.isArray(raw.titles) ? raw.titles.map(String) : [],
+    strengths: Array.isArray(raw.strengths) ? raw.strengths.map(String) : [],
+    weaknesses: Array.isArray(raw.weaknesses) ? raw.weaknesses.map(String) : [],
+    fixes: Array.isArray(raw.fixes) ? raw.fixes : [],
+    captions: Array.isArray(raw.captions) ? raw.captions : [],
+    // НОВЫЕ ПОЛЯ ДЛЯ ТЕНЕВОГО БАНА
+    shadowbanScore: clampScore(raw.shadowban?.score),
+    shadowbanReasons: Array.isArray(raw.shadowban?.reasons) ? raw.shadowban.reasons.map(String) : []
+  } as ModelFacts;
 }
 
 async function complete(apiKey: string, data: Payload) {
@@ -94,22 +78,26 @@ async function complete(apiKey: string, data: Payload) {
     parts.push({ inlineData: { mimeType: "image/jpeg", data: frame.jpeg } });
   }
   const prompt = `${data.brief}
-Верни JSON (строго без markdown, только { ... }):
+Верни JSON:
 {
   "watched": "2-4 предложения, что происходит на кадрах.",
   "topic": "тема",
   "hook": { "score": 50, "problem": "проблема" },
   "payoff": { "score": 50, "note": "причина" },
   "loop": { "score": 50, "note": "стыковка" },
-  "clarity": { "score": 50, "searchPhrases": ["фраза"] },
+  "clarity": { "score": 50 },
   "story": { "score": 50, "note": "оценка сюжета" },
   "originality": { "score": 50, "note": "оценка оригинальности" },
+  "shadowban": {
+    "score": 50,
+    "reasons": ["Причина 1 (например, чужой водяной знак)", "Причина 2 (например, плохое качество)"]
+  },
   "retentionNotes": ["удержание"],
   "watermark": "none|tiktok|other|unsure",
   "suggestedHookLine": "4-8 слов",
-  "titles": ["заголовок 1", "заголовок 2"],
-  "strengths": ["плюс 1", "плюс 2"],
-  "weaknesses": ["минус 1"],
+  "titles": ["заголовок"],
+  "strengths": ["плюс"],
+  "weaknesses": ["минус"],
   "fixes": [{ "priority": "high", "at": 0.0, "title": "правка", "action": "действие" }],
   "captions": [{ "label": "текст", "text": "описание", "hashtags": ["#tag"] }]
 }`;
@@ -125,13 +113,9 @@ async function complete(apiKey: string, data: Payload) {
     }),
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    return { ok: false as const, status: res.status, body: body.slice(0, 400) };
-  }
+  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
   const json = await res.json();
-  const text = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  return { ok: true as const, text };
+  return json.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
 export const watchFrames = createServerFn({ method: "POST" })
@@ -139,11 +123,9 @@ export const watchFrames = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<WatchResult> => {
     const apiKey = process.env.GEMINI_API_KEY; 
     if (!apiKey) return { ok: false, error: "unavailable" };
-
     try {
-      const attempt = await complete(apiKey, data);
-      if (!attempt.ok) return { ok: false, error: "failed" };
-      return { ok: true, model: parseModel(attempt.text) };
+      const text = await complete(apiKey, data);
+      return { ok: true, model: parseModel(text) };
     } catch (e) {
       return { ok: false, error: "failed" };
     }

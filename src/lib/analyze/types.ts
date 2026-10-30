@@ -134,3 +134,8 @@ export type Report = {
     fileName: string;
   };
 };
+
+export type ShadowbanRisk = {
+  score: number;
+  reasons: string[];
+};
