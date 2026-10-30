@@ -9,10 +9,10 @@ type Payload = {
 const SYSTEM = `Ты профессиональный режиссер TikTok и эксперт по вирусному контенту. Ты смотришь отдельные кадры одного ролика.
 Твоя задача — оценить ВИЗУАЛЬНУЮ составляющую: композицию, динамику, движение в кадре, смену планов и то, как выстроена визуальная история. 
 ЗВУК ТЕБЕ НЕ ДАН. 
-ОБРАТИ ВНИМАНИЕ: Если в кадре нет текста, это НЕ значит, что видео плохое. Оценивай картинку, действие и визуальные образы.
+ОБРАТИ ВНИМАНИЕ: Если в кадре нет текста, это НЕ значит, что видео плохое. Оценивай картинку, действие и визуальные образы на всех кадрах в совокупности. Если первые кадры темные, но дальше что-то происходит — оценивай по тому, что происходит.
 Отвечай только на русском языке.
 Отвечай только JSON без markdown.
-Все оценки score возвращай целыми числами от 1 до 100, не используй 0. Если данных мало, поставь 40-50 и объясни в note. 
+Все оценки score возвращай целыми числами от 1 до 100, не используй 0. Если данных мало, поставь 40-50 и объясни в note. ЗАПРЕЩЕНО возвращать 0 для story и originality, минимальная оценка 20. 
 Заполни все поля структуры.`;
 
 function payload(input: unknown): Payload {
@@ -115,7 +115,7 @@ async function complete(apiKey: string, data: Payload) {
 }`;
   parts.push({ text: prompt });
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
