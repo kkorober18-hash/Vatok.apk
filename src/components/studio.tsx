@@ -7,7 +7,7 @@ import { buildReport, formatClock, formatCount } from "@/lib/analyze/report";
 import type { ModelFacts, OcrWord, Report } from "@/lib/analyze/types";
 import { watchFrames } from "@/lib/analyze/watch";
 
-const MAX_BYTES = 180 * 1024 * 1024;
+const MAX_BYTES = 1024 * 1024 * 1024;
 
 function isVideo(file: File) {
   return file.type.startsWith("video/") || /\.(mp4|mov|webm|m4v|mkv|avi)$/i.test(file.name);
@@ -63,7 +63,7 @@ export function Studio() {
       return;
     }
     if (next.size > MAX_BYTES) {
-      setError("Файл больше 180 МБ. Сожми ролик — для проверки хватит обычного MP4.");
+      setError("Файл больше 1 ГБ. Сожми ролик — для проверки хватит обычного MP4.");
       return;
     }
     abortRef.current?.abort();
@@ -206,7 +206,7 @@ export function Studio() {
             <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
           </div>
           <div>
-            <p className="font-display text-3xl leading-none tracking-tight">Лента</p>
+            <p className="font-display text-3xl leading-none tracking-tight">Vatok</p>
             <p className="mt-1 text-sm text-muted">Умный разбор TikTok-видео</p>
           </div>
         </div>
@@ -492,6 +492,80 @@ function Verdict({
           </ul>
         )}
       </div>
+
+      {true ? (
+        <div className="rounded-2xl border border-line bg-card p-5">
+          <h2 className="font-display text-2xl tracking-tight">Анализ и продвижение</h2>
+          {report.titles.length > 0 ? (
+            <div className="mt-4">
+              <h3 className="font-medium">Варианты названия</h3>
+              <ul className="mt-2 flex flex-col gap-2">
+                {report.titles.map((title, index) => (
+                  <li key={index} className="flex items-center justify-between gap-3 rounded-lg bg-elevated p-3">
+                    <span>{title}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => onCopy("title-" + index, title)}>
+                      {copied === "title-" + index ? "Скопировано" : "Копировать"}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {report.strengths.length > 0 ? (
+            <div className="mt-5">
+              <h3 className="font-medium">Сильные стороны</h3>
+              <ul className="mt-2 flex flex-col gap-2">
+                {report.strengths.map((item, index) => (
+                  <li key={index} className="text-sm text-muted">✓ {item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {report.weaknesses.length > 0 ? (
+            <div className="mt-5">
+              <h3 className="font-medium">Слабые стороны</h3>
+              <ul className="mt-2 flex flex-col gap-2">
+                {report.weaknesses.map((item, index) => (
+                  <li key={index} className="text-sm text-muted">• {item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl bg-elevated p-4">
+              <h3 className="font-medium">Сюжет и история · {report.storyScore}/100</h3>
+              <p className="mt-2 text-sm text-muted">{report.storyNote || "Недостаточно данных для оценки сюжета."}</p>
+            </div>
+            <div className="rounded-xl bg-elevated p-4">
+              <h3 className="font-medium">Визуальная оригинальность · {report.originalityScore}/100</h3>
+              <p className="mt-2 text-sm text-muted">{report.originalityNote || "Недостаточно данных для оценки оригинальности."}</p>
+            </div>
+          </div>
+          {report.retentionNotes.length > 0 ? (
+            <div className="mt-5">
+              <h3 className="font-medium">Где зритель может потерять интерес</h3>
+              <ul className="mt-2 flex flex-col gap-2">
+                {report.retentionNotes.map((item, index) => (
+                  <li key={index} className="text-sm text-muted">• {item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {report.fixes && report.fixes.length > 0 ? (
+            <div className="mt-5">
+              <h3 className="font-medium">Что исправить</h3>
+              <ul className="mt-2 flex flex-col gap-2">
+                {report.fixes.map((item) => (
+                  <li key={item.id} className="text-sm">
+                    <span className="font-medium">{item.title}</span>
+                    <span className="text-muted"> — {item.action}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {report.watched ? (
         <div className="rounded-2xl border border-line bg-card p-5">

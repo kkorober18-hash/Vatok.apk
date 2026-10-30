@@ -6,11 +6,18 @@ type Payload = {
   brief: string;
 };
 
-const SYSTEM = `Ты смотришь отдельные кадры одного ролика, который человек хочет выложить в TikTok. Звук тебе не дан. Не выдумывай предметы, людей, надписи и сюжет, которых нет в кадрах. Если кадр неясный — так и скажи.
-Отвечай только JSON без markdown. Язык полей с текстом — русский.
-Не пиши прогнозы просмотров и проценты.
-Хэштеги описывают только то, что видно. Запрещены: fyp, foryou, viral, рекомендации, рек.
-Правки — конкретные действия в монтажке, с привязкой ко времени, а не общие советы «сделай динамичнее».`;
+const SYSTEM = `Ты профессиональный режиссер TikTok и эксперт по вирусному контенту. Ты смотришь отдельные кадры одного ролика.
+Твоя задача — оценить ВИЗУАЛЬНУЮ составляющую: композицию, динамику, движение в кадре, смену планов и то, как выстроена визуальная история. 
+ЗВУК ТЕБЕ НЕ ДАН. 
+ОБРАТИ ВНИМАНИЕ: Если в кадре нет текста, это НЕ значит, что видео плохое. Оценивай картинку, действие и визуальные образы.
+Не выдумывай того, чего нет, но если видишь действие или объект — обязательно опиши его.
+Отвечай только JSON без markdown. Язык полей с текстом — русский. 
+ОБЯЗАТЕЛЬНО верни все поля из заданной JSON-структуры, ничего не пропускай. 
+Все оценки score возвращай целыми числами от 1 до 100, не используй 0 как заглушку. Если данных реально мало, поставь осторожную оценку (например, 40-50) и прямо объясни неопределённость в note. 
+Заполни watched, topic, story, originality, retentionNotes, titles, strengths, weaknesses, fixes и captions по видимым кадрам. 
+Не пиши прогнозы просмотров и проценты. 
+Хэштеги описывают только то, что видно. Запрещены: fyp, foryou, viral, рекомендации, рек. 
+Правки — конкретные действия в монтажке, привязанные ко времени.`;
 
 function payload(input: unknown): Payload {
   if (!input || typeof input !== "object") throw new Error("Пустой запрос");
@@ -35,8 +42,8 @@ function payload(input: unknown): Payload {
 
 function clampScore(value: unknown) {
   const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.min(100, Math.max(0, n));
+  if (!Number.isFinite(n)) return 50; // Защита от 0, если ИИ вернул null
+  return Math.min(100, Math.max(1, n));
 }
 
 function extractJson(text: string): unknown {
@@ -58,7 +65,7 @@ function asText(value: unknown) {
 function parseModel(text: string): ModelFacts {
   const raw = extractJson(text) as Record<string, unknown>;
   const watched = asText(raw.watched);
-  if (watched.length < 20) throw new Error("empty watch");
+  if (watched.length < 10) throw new Error("empty watch");
   const hook = (raw.hook ?? {}) as Record<string, unknown>;
   const payoff = (raw.payoff ?? {}) as Record<string, unknown>;
   const loop = (raw.loop ?? {}) as Record<string, unknown>;
@@ -81,11 +88,19 @@ function parseModel(text: string): ModelFacts {
     loopScore: clampScore(loop.score),
     loopNote: asText(loop.note).slice(0, 240),
     clarityScore: clampScore(clarity.score),
+    storyScore: clampScore((raw.story as Record<string, unknown> | undefined)?.score),
+    storyNote: asText((raw.story as Record<string, unknown> | undefined)?.note).slice(0, 300),
+    originalityScore: clampScore((raw.originality as Record<string, unknown> | undefined)?.score),
+    originalityNote: asText((raw.originality as Record<string, unknown> | undefined)?.note).slice(0, 300),
+    retentionNotes: Array.isArray(raw.retentionNotes) ? raw.retentionNotes.map(asText).filter(Boolean).slice(0, 5) : [],
     searchPhrases: Array.isArray(clarity.searchPhrases)
       ? clarity.searchPhrases.map(asText).filter(Boolean).slice(0, 5)
       : [],
     watermark,
     suggestedHookLine: asText(raw.suggestedHookLine).slice(0, 90),
+    titles: Array.isArray(raw.titles) ? raw.titles.map(asText).filter(Boolean).slice(0, 5) : [],
+    strengths: Array.isArray(raw.strengths) ? raw.strengths.map(asText).filter(Boolean).slice(0, 5) : [],
+    weaknesses: Array.isArray(raw.weaknesses) ? raw.weaknesses.map(asText).filter(Boolean).slice(0, 5) : [],
     fixes: fixesIn.slice(0, 6).map((item) => {
       const fix = (item ?? {}) as Record<string, unknown>;
       const priority = asText(fix.priority);
@@ -123,20 +138,25 @@ async function complete(apiKey: string, data: Payload, jsonMode: boolean) {
   content.push({
     type: "text",
     text: `${data.brief}
-
 Верни JSON:
 {
-  "watched": "2-4 предложения, что происходит на кадрах по времени. Назови то, что реально видно.",
+  "watched": "2-4 предложения, что происходит на кадрах по времени. Опиши визуальные действия.",
   "topic": "тема в 2-4 словах",
-  "hook": { "score": 0, "problem": "что не так в первых кадрах или пустая строка" },
-  "payoff": { "score": 0, "note": "есть ли причина досмотреть до конца" },
-  "loop": { "score": 0, "note": "стыкуется ли последний кадр с первым" },
-  "clarity": { "score": 0, "searchPhrases": ["фраза, которую вбили бы в поиск"] },
+  "hook": { "score": 50, "problem": "что не так в первых кадрах" },
+  "payoff": { "score": 50, "note": "есть ли причина досмотреть до конца" },
+  "loop": { "score": 50, "note": "стыкуется ли последний кадр с первым" },
+  "clarity": { "score": 50, "searchPhrases": ["фраза для поиска"] },
+  "story": { "score": 50, "note": "понятность визуальной идеи, развитие, интрига и финал" },
+  "originality": { "score": 50, "note": "насколько визуальная подача оригинальна" },
+  "retentionNotes": ["где зритель может потерять интерес и почему"],
   "watermark": "none|tiktok|other|unsure",
-  "suggestedHookLine": "4-8 слов на экран в 0:00, суть, не «смотри до конца»",
-  "fixes": [{ "priority": "high|medium|low", "at": 0.0, "title": "коротко", "action": "что вырезать или передвинуть" }],
+  "suggestedHookLine": "4-8 слов на экран в 0:00, суть",
+  "titles": ["3-5 цепляющих названий по реальному содержанию"],
+  "strengths": ["3-5 конкретных сильных сторон видео"],
+  "weaknesses": ["3-5 конкретных слабых сторон"],
+  "fixes": [{ "priority": "high|medium|low", "at": 0.0, "title": "коротко", "action": "что вырезать" }],
   "captions": [
-    { "label": "для поиска", "text": "40-90 знаков, слова по которым ищут, без кликбейта", "hashtags": ["3 или 4"] },
+    { "label": "для поиска", "text": "40-90 знаков", "hashtags": ["3 или 4"] },
     { "label": "коротко", "text": "до 50 знаков", "hashtags": ["3"] },
     { "label": "вопрос", "text": "вопрос по делу ролика", "hashtags": ["3"] }
   ]
@@ -152,8 +172,8 @@ async function complete(apiKey: string, data: Payload, jsonMode: boolean) {
     },
     body: JSON.stringify({
       model: "grok-4.5",
-      temperature: 0.2,
-      max_tokens: 1600,
+      temperature: 0.4, // Немного подняли креативность
+      max_tokens: 3000,
       ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: SYSTEM },
@@ -181,6 +201,7 @@ export const watchFrames = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<WatchResult> => {
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) return { ok: false, error: "unavailable" };
+
     try {
       let attempt = await complete(apiKey, data, true);
       if (!attempt.ok && (attempt.status === 400 || attempt.status >= 500)) {

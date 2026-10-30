@@ -108,7 +108,7 @@ async function readAudio(file: File, duration: number): Promise<AudioFacts> {
     flat: false,
     partial: false,
   };
-  if (file.size > 70 * 1024 * 1024) return empty;
+  if (file.size > 1024 * 1024 * 1024) return empty;
   let context: AudioContext | null = null;
   try {
     context = new AudioContext();

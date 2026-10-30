@@ -114,6 +114,9 @@ describe("report", () => {
       searchPhrases: ["сборка шкафа"],
       watermark: "other",
       suggestedHookLine: "Собрала шкаф за вечер",
+    titles: [],
+    strengths: [],
+    weaknesses: [],
       fixes: [],
       captions: [
         { label: "для поиска", text: "Как собрать шкаф за один вечер без мастера", hashtags: ["шкаф", "fyp", "сборкамебели"] },
