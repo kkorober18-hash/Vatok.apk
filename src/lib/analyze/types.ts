@@ -63,6 +63,8 @@ export type ModelFacts = {
   storyNote: string;
   originalityScore: number;
   originalityNote: string;
+  shadowbanScore: number;
+  shadowbanReasons: string[];
   retentionNotes: string[];
   searchPhrases: string[];
   watermark: "none" | "tiktok" | "other" | "unsure";
@@ -120,6 +122,8 @@ export type Report = {
   storyNote: string;
   originalityScore: number;
   originalityNote: string;
+  shadowbanScore: number;
+  shadowbanReasons: string[];
   retentionNotes: string[];
   readOnFrame: { t: number; text: string }[];
   frameTimes: number[];

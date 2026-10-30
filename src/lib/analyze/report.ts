@@ -626,6 +626,8 @@ export function buildReport(
     storyNote: model?.storyNote ?? "",
     originalityScore: model?.originalityScore ?? 0,
     originalityNote: model?.originalityNote ?? "",
+    shadowbanScore: model?.shadowbanScore ?? 0,
+    shadowbanReasons: model?.shadowbanReasons ?? [],
     retentionNotes: model?.retentionNotes ?? [],
     readOnFrame: ocr.lines.map((line) => ({ t: line.t, text: line.text })),
     frameTimes: video.frameTimes,
