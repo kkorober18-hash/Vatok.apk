@@ -10,30 +10,21 @@ const SYSTEM = `Ты профессиональный режиссер TikTok и
 Твоя задача — оценить ВИЗУАЛЬНУЮ составляющую: композицию, динамику, движение в кадре, смену планов и то, как выстроена визуальная история. 
 ЗВУК ТЕБЕ НЕ ДАН. 
 ОБРАТИ ВНИМАНИЕ: Если в кадре нет текста, это НЕ значит, что видео плохое. Оценивай картинку, действие и визуальные образы.
-Не выдумывай того, чего нет, но если видишь действие или объект — обязательно опиши его.
-Отвечай только JSON без markdown. Язык полей с текстом — русский. 
-ОБЯЗАТЕЛЬНО верни все поля из заданной JSON-структуры, ничего не пропускай. 
-Все оценки score возвращай целыми числами от 1 до 100, не используй 0 как заглушку. Если данных реально мало, поставь осторожную оценку (например, 40-50) и прямо объясни неопределённость в note. 
-Заполни watched, topic, story, originality, retentionNotes, titles, strengths, weaknesses, fixes и captions по видимым кадрам. 
-Не пиши прогнозы просмотров и проценты. 
-Хэштеги описывают только то, что видно. Запрещены: fyp, foryou, viral, рекомендации, рек. 
-Правки — конкретные действия в монтажке, привязанные ко времени.`;
+Отвечай только на русском языке.
+Отвечай только JSON без markdown.
+Все оценки score возвращай целыми числами от 1 до 100, не используй 0. Если данных мало, поставь 40-50 и объясни в note. 
+Заполни все поля структуры.`;
 
 function payload(input: unknown): Payload {
   if (!input || typeof input !== "object") throw new Error("Пустой запрос");
   const frames = (input as { frames?: unknown }).frames;
   const brief = (input as { brief?: unknown }).brief;
-  if (!Array.isArray(frames) || frames.length < 1 || frames.length > 8) {
-    throw new Error("Нужны кадры ролика");
-  }
+  if (!Array.isArray(frames) || frames.length < 1 || frames.length > 8) throw new Error("Нужны кадры ролика");
   const clean = frames.map((frame) => {
     if (!frame || typeof frame !== "object") throw new Error("Плохой кадр");
     const t = Number((frame as { t?: unknown }).t);
     const jpeg = (frame as { jpeg?: unknown }).jpeg;
-    if (!Number.isFinite(t) || typeof jpeg !== "string" || jpeg.length < 80 || jpeg.length > 120_000) {
-      throw new Error("Кадр слишком большой или пустой");
-    }
-    if (!/^[A-Za-z0-9+/=\s]+$/.test(jpeg)) throw new Error("Кадр повреждён");
+    if (!Number.isFinite(t) || typeof jpeg !== "string" || jpeg.length < 80 || jpeg.length > 120_000) throw new Error("Кадр слишком большой или пустой");
     return { t, jpeg: jpeg.replace(/\s/g, "") };
   });
   if (typeof brief !== "string") throw new Error("Нет описания файла");
@@ -42,15 +33,13 @@ function payload(input: unknown): Payload {
 
 function clampScore(value: unknown) {
   const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(n)) return 50; // Защита от 0, если ИИ вернул null
+  if (!Number.isFinite(n)) return 50;
   return Math.min(100, Math.max(1, n));
 }
 
 function extractJson(text: string): unknown {
   const unfenced = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try {
-    return JSON.parse(unfenced);
-  } catch {
+  try { return JSON.parse(unfenced); } catch {
     const start = unfenced.indexOf("{");
     const end = unfenced.lastIndexOf("}");
     if (start >= 0 && end > start) return JSON.parse(unfenced.slice(start, end + 1));
@@ -58,9 +47,7 @@ function extractJson(text: string): unknown {
   }
 }
 
-function asText(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
+function asText(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 
 function parseModel(text: string): ModelFacts {
   const raw = extractJson(text) as Record<string, unknown>;
@@ -71,33 +58,19 @@ function parseModel(text: string): ModelFacts {
   const loop = (raw.loop ?? {}) as Record<string, unknown>;
   const clarity = (raw.clarity ?? {}) as Record<string, unknown>;
   const watermarkRaw = asText(raw.watermark);
-  const watermark = (["none", "tiktok", "other", "unsure"] as const).includes(
-    watermarkRaw as "none",
-  )
-    ? (watermarkRaw as ModelFacts["watermark"])
-    : "unsure";
+  const watermark = (["none", "tiktok", "other", "unsure"] as const).includes(watermarkRaw as "none") ? (watermarkRaw as ModelFacts["watermark"]) : "unsure";
   const fixesIn = Array.isArray(raw.fixes) ? raw.fixes : [];
   const captionsIn = Array.isArray(raw.captions) ? raw.captions : [];
   return {
-    watched,
-    topic: asText(raw.topic).slice(0, 80),
-    hookScore: clampScore(hook.score),
-    hookProblem: asText(hook.problem) || null,
-    payoffScore: clampScore(payoff.score),
-    payoffNote: asText(payoff.note).slice(0, 240),
-    loopScore: clampScore(loop.score),
-    loopNote: asText(loop.note).slice(0, 240),
-    clarityScore: clampScore(clarity.score),
-    storyScore: clampScore((raw.story as Record<string, unknown> | undefined)?.score),
+    watched, topic: asText(raw.topic).slice(0, 80), hookScore: clampScore(hook.score), hookProblem: asText(hook.problem) || null,
+    payoffScore: clampScore(payoff.score), payoffNote: asText(payoff.note).slice(0, 240), loopScore: clampScore(loop.score), loopNote: asText(loop.note).slice(0, 240),
+    clarityScore: clampScore(clarity.score), storyScore: clampScore((raw.story as Record<string, unknown> | undefined)?.score),
     storyNote: asText((raw.story as Record<string, unknown> | undefined)?.note).slice(0, 300),
     originalityScore: clampScore((raw.originality as Record<string, unknown> | undefined)?.score),
     originalityNote: asText((raw.originality as Record<string, unknown> | undefined)?.note).slice(0, 300),
     retentionNotes: Array.isArray(raw.retentionNotes) ? raw.retentionNotes.map(asText).filter(Boolean).slice(0, 5) : [],
-    searchPhrases: Array.isArray(clarity.searchPhrases)
-      ? clarity.searchPhrases.map(asText).filter(Boolean).slice(0, 5)
-      : [],
-    watermark,
-    suggestedHookLine: asText(raw.suggestedHookLine).slice(0, 90),
+    searchPhrases: Array.isArray(clarity.searchPhrases) ? clarity.searchPhrases.map(asText).filter(Boolean).slice(0, 5) : [],
+    watermark, suggestedHookLine: asText(raw.suggestedHookLine).slice(0, 90),
     titles: Array.isArray(raw.titles) ? raw.titles.map(asText).filter(Boolean).slice(0, 5) : [],
     strengths: Array.isArray(raw.strengths) ? raw.strengths.map(asText).filter(Boolean).slice(0, 5) : [],
     weaknesses: Array.isArray(raw.weaknesses) ? raw.weaknesses.map(asText).filter(Boolean).slice(0, 5) : [],
@@ -105,111 +78,73 @@ function parseModel(text: string): ModelFacts {
       const fix = (item ?? {}) as Record<string, unknown>;
       const priority = asText(fix.priority);
       const at = fix.at === null || fix.at === undefined ? null : Number(fix.at);
-      return {
-        priority: priority === "high" || priority === "low" ? priority : "medium",
-        at: at !== null && Number.isFinite(at) ? at : null,
-        title: asText(fix.title),
-        action: asText(fix.action),
-      };
+      return { priority: priority === "high" || priority === "low" ? priority : "medium", at: at !== null && Number.isFinite(at) ? at : null, title: asText(fix.title), action: asText(fix.action) };
     }),
     captions: captionsIn.slice(0, 3).map((item) => {
       const caption = (item ?? {}) as Record<string, unknown>;
-      return {
-        label: asText(caption.label),
-        text: asText(caption.text),
-        hashtags: Array.isArray(caption.hashtags) ? caption.hashtags.map(asText) : [],
-      };
+      return { label: asText(caption.label), text: asText(caption.text), hashtags: Array.isArray(caption.hashtags) ? caption.hashtags.map(asText) : [] };
     }),
   };
 }
 
-async function complete(apiKey: string, data: Payload, jsonMode: boolean) {
-  const content: Array<
-    | { type: "text"; text: string }
-    | { type: "image_url"; image_url: { url: string; detail: "low" } }
-  > = [];
+async function complete(apiKey: string, data: Payload) {
+  const parts: any[] = [];
   for (const frame of data.frames) {
-    content.push({ type: "text", text: `Кадр на ${frame.t.toFixed(2)} с.` });
-    content.push({
-      type: "image_url",
-      image_url: { url: `data:image/jpeg;base64,${frame.jpeg}`, detail: "low" },
-    });
+    parts.push({ text: `Кадр на ${frame.t.toFixed(2)} с.` });
+    parts.push({ inlineData: { mimeType: "image/jpeg", data: frame.jpeg } });
   }
-  content.push({
-    type: "text",
-    text: `${data.brief}
-Верни JSON:
+  const prompt = `${data.brief}
+Верни JSON (строго без markdown, только { ... }):
 {
-  "watched": "2-4 предложения, что происходит на кадрах по времени. Опиши визуальные действия.",
-  "topic": "тема в 2-4 словах",
-  "hook": { "score": 50, "problem": "что не так в первых кадрах" },
-  "payoff": { "score": 50, "note": "есть ли причина досмотреть до конца" },
-  "loop": { "score": 50, "note": "стыкуется ли последний кадр с первым" },
-  "clarity": { "score": 50, "searchPhrases": ["фраза для поиска"] },
-  "story": { "score": 50, "note": "понятность визуальной идеи, развитие, интрига и финал" },
-  "originality": { "score": 50, "note": "насколько визуальная подача оригинальна" },
-  "retentionNotes": ["где зритель может потерять интерес и почему"],
+  "watched": "2-4 предложения, что происходит на кадрах.",
+  "topic": "тема",
+  "hook": { "score": 50, "problem": "проблема" },
+  "payoff": { "score": 50, "note": "причина" },
+  "loop": { "score": 50, "note": "стыковка" },
+  "clarity": { "score": 50, "searchPhrases": ["фраза"] },
+  "story": { "score": 50, "note": "оценка сюжета" },
+  "originality": { "score": 50, "note": "оценка оригинальности" },
+  "retentionNotes": ["удержание"],
   "watermark": "none|tiktok|other|unsure",
-  "suggestedHookLine": "4-8 слов на экран в 0:00, суть",
-  "titles": ["3-5 цепляющих названий по реальному содержанию"],
-  "strengths": ["3-5 конкретных сильных сторон видео"],
-  "weaknesses": ["3-5 конкретных слабых сторон"],
-  "fixes": [{ "priority": "high|medium|low", "at": 0.0, "title": "коротко", "action": "что вырезать" }],
-  "captions": [
-    { "label": "для поиска", "text": "40-90 знаков", "hashtags": ["3 или 4"] },
-    { "label": "коротко", "text": "до 50 знаков", "hashtags": ["3"] },
-    { "label": "вопрос", "text": "вопрос по делу ролика", "hashtags": ["3"] }
-  ]
-}`,
-  });
+  "suggestedHookLine": "4-8 слов",
+  "titles": ["заголовок 1", "заголовок 2"],
+  "strengths": ["плюс 1", "плюс 2"],
+  "weaknesses": ["минус 1"],
+  "fixes": [{ "priority": "high", "at": 0.0, "title": "правка", "action": "действие" }],
+  "captions": [{ "label": "текст", "text": "описание", "hashtags": ["#tag"] }]
+}`;
+  parts.push({ text: prompt });
 
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
     method: "POST",
-    signal: AbortSignal.timeout(50_000),
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "grok-4.5",
-      temperature: 0.4, // Немного подняли креативность
-      max_tokens: 3000,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content },
-      ],
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: { temperature: 0.4, responseMimeType: "application/json" }
     }),
   });
+
   if (!res.ok) {
     const body = await res.text();
     return { ok: false as const, status: res.status, body: body.slice(0, 400) };
   }
-  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return { ok: true as const, text: json.choices?.[0]?.message?.content ?? "" };
-}
-
-function mapFailure(status: number, body: string): WatchResult {
-  if (status === 401 || status === 402 || status === 403 || /credit|spending|quota/i.test(body)) {
-    return { ok: false, error: status === 401 ? "unavailable" : "credits" };
-  }
-  return { ok: false, error: "failed" };
+  const json = await res.json();
+  const text = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return { ok: true as const, text };
 }
 
 export const watchFrames = createServerFn({ method: "POST" })
   .validator(payload)
   .handler(async ({ data }): Promise<WatchResult> => {
-    const apiKey = process.env.XAI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY; 
     if (!apiKey) return { ok: false, error: "unavailable" };
 
     try {
-      let attempt = await complete(apiKey, data, true);
-      if (!attempt.ok && (attempt.status === 400 || attempt.status >= 500)) {
-        attempt = await complete(apiKey, data, false);
-      }
-      if (!attempt.ok) return mapFailure(attempt.status, attempt.body);
+      const attempt = await complete(apiKey, data);
+      if (!attempt.ok) return { ok: false, error: "failed" };
       return { ok: true, model: parseModel(attempt.text) };
-    } catch {
+    } catch (e) {
       return { ok: false, error: "failed" };
     }
   });
